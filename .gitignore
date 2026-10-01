@@ -13,5 +13,10 @@ data/
 .env
 FilmSearchApi/appsettings.Development.json
 
+# IDE ayarları
+.idea/
+.vs/
+.vscode/
+
 # macOS
 .DS_Store
