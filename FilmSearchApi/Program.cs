@@ -10,6 +10,7 @@ var esSettings = new ElasticsearchClientSettings(new Uri("http://localhost:9200"
     
 builder.Services.AddSingleton(new ElasticsearchClient(esSettings));
 // AddSingleton->  bu nesneden tek bir tane üret, isteyen herkese aynısını ver 
+builder.Services.AddHostedService<SyncWorker>();
 
 var app = builder.Build();
 

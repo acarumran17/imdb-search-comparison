@@ -2,17 +2,17 @@ USE FilmDb;
 GO
 
 -- veritabanı seviyesinde açma:
-IF NOT EXISTS (SELECT 1 FROM sys.change_tracking_database
+IF NOT EXISTS (SELECT 1 FROM sys.change_tracking_databases
                 WHERE database_id = DB_ID('FilmDb'))
     ALTER DATABASE FilmDb
-    SET CAHNGE_TRACKING = ON (CHANGE_RETENTION = 7 DAYS, AUTO_CLEANUP = ON);
+    SET CHANGE_TRACKING = ON (CHANGE_RETENTION = 7 DAYS, AUTO_CLEANUP = ON);
 GO
 
 -- tablo seviyesinde açma:
 IF NOT EXISTS (SELECT 1 FROM sys.change_tracking_tables
                 WHERE object_id = OBJECT_ID('Filmler'))
     ALTER TABLE Filmler
-    ENABLE CAHNGE_TRACKING WITH (TRACK_COLUMNS_UPDATED = OFF);
+    ENABLE CHANGE_TRACKING WITH (TRACK_COLUMNS_UPDATED = OFF);
 GO
 
 -- açıldı mı kontrolü
