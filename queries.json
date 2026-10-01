@@ -1,0 +1,76 @@
+{
+    "1_basit_arama": {
+      "query": { "match": { "primaryTitle": "inception" } }
+    },
+  
+    "2_yazim_hatasi_toleransli": {
+      "query": {
+        "match": {
+          "primaryTitle": { "query": "inceptoin", "fuzziness": "AUTO" }
+        }
+      }
+    },
+  
+    "3_iki_alanda_boost_ile": {
+      "query": {
+        "multi_match": {
+          "query": "amelie",
+          "fields": ["primaryTitle^3", "originalTitle"]
+        }
+      }
+    },
+  
+    "4_arama_artı_filtre": {
+      "query": {
+        "bool": {
+          "must": [{ "match": { "primaryTitle": "star wars" } }],
+          "filter": [
+            { "term": { "titleType": "movie" } },
+            { "range": { "startYear": { "gte": 2000 } } }
+          ]
+        }
+      }
+    },
+  
+    "5_populer_iyi_filmler": {
+      "query": {
+        "bool": {
+          "filter": [
+            { "term": { "titleType": "movie" } },
+            { "range": { "rating": { "gte": 8.0 } } },
+            { "range": { "votes": { "gte": 100000 } } }
+          ]
+        }
+      },
+      "sort": [{ "votes": "desc" }],
+      "size": 10
+    },
+  
+    "6_vurgulamali_arama": {
+      "query": { "match": { "primaryTitle": "star wars" } },
+      "highlight": { "fields": { "primaryTitle": {} } },
+      "size": 3
+    },
+  
+    "7_turlere_gore_sayim": {
+      "size": 0,
+      "aggs": {
+        "turler": { "terms": { "field": "genres", "size": 20 } }
+      }
+    },
+  
+    "8_yillara_gore_dagilim": {
+      "size": 0,
+      "query": {
+        "bool": {
+          "filter": [
+            { "term": { "titleType": "movie" } },
+            { "range": { "startYear": { "gte": 1990 } } }
+          ]
+        }
+      },
+      "aggs": {
+        "yillar": { "histogram": { "field": "startYear", "interval": 5 } }
+      }
+    }
+  }

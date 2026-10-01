@@ -1,0 +1,42 @@
+{
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": 0,
+      "analysis": {
+        "filter": {
+          "tr_lowercase": {
+            "type": "lowercase",
+            "language": "turkish"
+          }
+        },
+        "analyzer": {
+          "film_analyzer": {
+            "type": "custom",
+            "tokenizer": "standard",
+            "filter": ["tr_lowercase", "asciifolding"]
+          }
+        }
+      }
+    },
+    "mappings": {
+      "dynamic": "strict",
+      "properties": {
+        "tconst":         { "type": "keyword" },
+        "titleType":      { "type": "keyword" },
+        "primaryTitle": {
+          "type": "text",
+          "analyzer": "film_analyzer",
+          "fields": {
+            "keyword": { "type": "keyword", "ignore_above": 256 }
+          }
+        },
+        "originalTitle":  { "type": "text", "analyzer": "film_analyzer" },
+        "startYear":      { "type": "short" },
+        "endYear":        { "type": "short" },
+        "runtimeMinutes": { "type": "integer" },
+        "genres":         { "type": "keyword" },
+        "rating":         { "type": "float" },
+        "votes":          { "type": "integer" }
+      }
+    }
+  }

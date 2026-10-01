@@ -1,0 +1,40 @@
+services:                    # çalışacak programlar
+  elasticsearch:        # 1.program
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.3.0      # hangi image'dan container oluşturulacağı
+    container_name: es
+    environment:          # container'ın içindeki programa verilen ayarlar
+      - discovery.type=single-node        # tek node'luk küçük cluster (öğrenme için yeterli)
+      - xpack.security.enabled=false      # yerelde şifre/HTTPS kapalı, işimiz kolaylaşsın
+      - ES_JAVA_OPTS=-Xms2g -Xmx2g        # Elasticsearch'e 2 GB bellek ver
+    ports:
+      - "9200:9200"                       # bilgisayarındaki 9200 → container'daki 9200
+    volumes:     # kalıcı depolama anlanları
+      - esdata:/usr/share/elasticsearch/data   # veriler container silinse de kalsın    #Elasticsearch'in veri klasörünü (/usr/share/.../data) container'ın dışında, esdata adlı kalıcı alanda tut
+
+  kibana:     # 2.program
+    image: docker.elastic.co/kibana/kibana:9.3.0   # Elasticsearch ile AYNI sürüm olmalı
+    container_name: kibana
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200   # Kibana, ES'e servis adıyla bağlanır
+    ports:
+      - "5601:5601"            # Kibana'nın arayüzüne Mac'ten localhost:5601 ile ulaşmak için.
+    depends_on:
+      - elasticsearch                     # önce ES başlasın
+
+  sqlserver:
+    build: ./sqlserver-fts          # hazır imaj indirmek yerine kendi imajımızı inşa et
+    image: mssql-2022-fts:local     # oluşan imaja bu adı ver
+    container_name: sqlserver
+    platform: linux/amd64                 # imaj x86 için derlenmiş, Rosetta ile çalışacak
+    environment:
+      - ACCEPT_EULA=Y                     # lisans sözleşmesini kabul ediyoruz
+      - MSSQL_SA_PASSWORD=${MSSQL_SA_PASSWORD}    # sa (yönetici) kullanıcısının şifresi
+      - MSSQL_PID=Developer               # ücretsiz geliştirici sürümü
+    ports:
+      - "1433:1433"                       # SQL Server'ın varsayılan portu
+    volumes:
+      - mssqldata:/var/opt/mssql          # veritabanı dosyaları kalıcı olsun
+
+volumes:      
+  esdata:   # esdata, depolama alanını tanımlıyor        # Index'lerin, shard'ların ve inverted index'in diskte durduğu yer
+  mssqldata:

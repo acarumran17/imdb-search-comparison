@@ -1,0 +1,17 @@
+# .NET derleme çıktıları
+bin/
+obj/
+
+# Python
+.venv/
+__pycache__/
+
+# Veri dosyaları (çok büyük, GitHub kabul etmez)
+data/
+
+# Şifre içeren dosyalar
+.env
+FilmSearchApi/appsettings.Development.json
+
+# macOS
+.DS_Store
