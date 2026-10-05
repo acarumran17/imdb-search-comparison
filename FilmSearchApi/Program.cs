@@ -4,9 +4,11 @@ using System.Diagnostics;   // Stopwatch için
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Elasticsearch istemcisini bir kere kur, uygulama boyunca kullan
-var esSettings = new ElasticsearchClientSettings(new Uri("http://localhost:9200"))
-    .DefaultIndex("filmler");
+var esUrl = builder.Configuration["Elasticsearch:Url"] ?? "http://localhost:9200";
+var esIndex = builder.Configuration["Elasticsearch:Index"] ?? "filmler";
+
+var esSettings = new ElasticsearchClientSettings(new Uri(esUrl))
+    .DefaultIndex(esIndex);
     
 builder.Services.AddSingleton(new ElasticsearchClient(esSettings));
 // AddSingleton->  bu nesneden tek bir tane üret, isteyen herkese aynısını ver 
@@ -29,13 +31,19 @@ app.MapGet("/api/search/es", async (string q, ElasticsearchClient es) =>
                 )
             )
             .Size(10)
+            .TrackTotalHits(true)
         );
+        if (!answer.IsValidResponse)
+            return Results.Problem("Elasticsearch'e ulaşılamadı: " + answer.DebugInformation);
+
         return Results.Ok(new               // new { ... } → anonim nesne. Adı olmayan, oracıkta üretilen bir tip
         {                                   // Sırf JSON'a çevrilecek diye ayrı bir sınıf yazmaya değmez
             source = "elasticsearch",
+            scoreType = "BM25 (üst sınır yok)",
             timeMs = answer.Took,           // ES'in kendi ölçtüğü süre
             sum = answer.Total,
-            result = answer.Hits.Select(h=> h.Source! with { Score = h.Score })
+            returned = answer.Hits.Count,
+            result = answer.Hits.Select(h => h.Source! with { Score = h.Score })
         });
     });
 
@@ -50,16 +58,34 @@ app.MapGet("/api/search/sql", async (string q, IConfiguration config) =>
         JOIN Filmler AS f ON f.Tconst = ft.[KEY]
         ORDER BY ft.RANK DESC 
         """;
+    // toplam eşleşme sayısı için ikinci sorgu
+    // TOP 10 yok, JOIN yok — sadece kaç satır eşleşti
+    const string countQuery = """
+        SELECT COUNT(*)
+        FROM FREETEXTTABLE(Filmler, PrimaryTitle, @q) AS ft
+        """;
     var connectionString = config.GetConnectionString("FilmDb");   //(appsettings.json'dan adresi al)
     var results = new List<Film>();    // filmleri dolduracağımız boş liste
     
     var time = Stopwatch.StartNew();
     
-  // await using-> blok bitince otomatik kapanıyor
+    // await using-> blok bitince otomatik kapanıyor
     await using var connection= new SqlConnection(connectionString);  // bağlantı nesnesi oluşturuyor
     await connection.OpenAsync();  // bağlanıyor
     
-  // şu sorgu, şu bağlantı üzerinden çalıştırılacak
+    var sayimSuresi = Stopwatch.StartNew();
+    // önce toplam sayıyı al (okuyucu açılmadan ÖNCE olmak zorunda)
+    
+    int toplam;
+    await using (var sayimKomutu = new SqlCommand(countQuery, connection))
+    {
+        sayimKomutu.Parameters.AddWithValue("@q", q);
+        toplam = Convert.ToInt32(await sayimKomutu.ExecuteScalarAsync());
+    }
+
+    sayimSuresi.Stop();
+
+    // şu sorgu, şu bağlantı üzerinden çalıştırılacak
     await using var command = new SqlCommand(query, connection);
     command.Parameters.AddWithValue("@q", q);
     // sorgudaki @q yerine, kullanıcının yazdığı kelimeyi koyar
@@ -84,8 +110,11 @@ app.MapGet("/api/search/sql", async (string q, IConfiguration config) =>
     return Results.Ok(new   // kronometreyi durdur, sonucu paketle, gönder.
         {
             source = "sqlserver",
+            scoreType = "RANK (0-1000)",
             timeMs = time.ElapsedMilliseconds,
-            sum = results.Count,
+            countMs = sayimSuresi.ElapsedMilliseconds,
+            sum = toplam,
+            returned = results.Count,
             result = results
         });
 });

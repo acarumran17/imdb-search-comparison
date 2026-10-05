@@ -64,7 +64,7 @@ public class SyncWorker : BackgroundService
             return;
         }
         
-        // ne değişti
+        // ne değişti (her 5 saniyede bir çalışıyor, servisin asıl sorgusu)
         const string sorgu = """
                              SELECT ct.Tconst,
                              ct.SYS_CHANGE_OPERATION,
