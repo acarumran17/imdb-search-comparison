@@ -16,7 +16,7 @@ INSERT INTO Filmler  (Tconst, TitleType, PrimaryTitle, StartYear)
 VALUES ('tt9999002', 'movie', 'Silinecek Film', 2026);
 GO
 
-DELETE FROM Filmler WHERE Tconst = "tt9999002";
+DELETE FROM Filmler WHERE Tconst = 'tt9999002';
 GO
 
 -- CT ne diyor

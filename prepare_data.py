@@ -112,7 +112,7 @@ def main():
     stats = {}
     examples = []
 
-    for doc in iter_docs(limit=limit, stats=stats):     # generator'ı tüketiyoruz
+    for doc in iter_docs(limit=LIMIT, stats=stats):     # generator'ı tüketiyoruz
         if doc["rating"] is not None and len(examples) < 5:
             examples.append(doc)
 
