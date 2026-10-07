@@ -1,6 +1,25 @@
 using Elastic.Clients.Elasticsearch;
 using Microsoft.Data.SqlClient;
 using System.Diagnostics;   // Stopwatch için
+using Elastic.Ingest.Elasticsearch;
+using Elastic.Ingest.Elasticsearch.DataStreams;
+using Elastic.Serilog.Sinks;
+using Serilog;
+using DataStreamName = Elastic.Ingest.Elasticsearch.DataStreams.DataStreamName;
+
+
+// Log.Logger = serilog'un genel kaydedicisi
+// kurulurken hata olursa yakalayabilsin diye builder'dan önce yazıldı
+Log.Logger = new LoggerConfiguration()
+    .MinimumLevel.Information()  // bundan düşük seviyeli loglar (debug,verbose) hiç üretilmiyor
+    .Enrich.FromLogContext()     // log bağlamına eklenen alanları her kayda otomatik iliştiriyor
+    .WriteTo.Console()     // WriteTo.... -> iki hedef (sink), ikisi birden
+    .WriteTo.Elasticsearch(new[] { new Uri("http://localhost:9200") }, opts =>
+    {
+        opts.DataStream = new DataStreamName("logs", "filmsearchapi", "default");  // veri akışını(data stream) oluşturur
+        opts.BootstrapMethod = BootstrapMethod.Failure; // ilk çalıştırmada ES'te gerekli şablonlar kurulamazsa hata fırlatıyor
+    })
+    .CreateLogger();
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -9,6 +28,8 @@ var esIndex = builder.Configuration["Elasticsearch:Index"] ?? "filmler";
 
 var esSettings = new ElasticsearchClientSettings(new Uri(esUrl))
     .DefaultIndex(esIndex);
+
+builder.Services.AddSerilog();
     
 builder.Services.AddSingleton(new ElasticsearchClient(esSettings));
 // AddSingleton->  bu nesneden tek bir tane üret, isteyen herkese aynısını ver 
@@ -119,14 +140,15 @@ app.MapGet("/api/search/sql", async (string q, IConfiguration config) =>
         });
 });
     
-    app.Run();
+app.Run();
+Log.CloseAndFlush();  // uyg. kapanırken tamponda bekleyenler bu satır olmadan kaybolur
     
     // Elasticsearch'ten dönen belgenin C# karşılığı 
-    // record → sadece veri taşıyan, kısa yazılan sınıf
-    public record Film(
-        string Tconst,
-        string PrimaryTitle,
-        int? StartYear,       // ? -> bu alan null olabilir
-        double? Rating,
-        double? Score = null
-    );
+// record → sadece veri taşıyan, kısa yazılan sınıf
+public record Film(
+    string Tconst,
+    string PrimaryTitle,
+    int? StartYear,       // ? -> bu alan null olabilir
+    double? Rating,
+    double? Score = null
+);
