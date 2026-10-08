@@ -22,7 +22,8 @@ Log.Logger = new LoggerConfiguration()
     .WriteTo.File(
         "logs/filmsearchapi-.log",
         rollingInterval: RollingInterval.Day,
-        retainedFileCountLimit: 7)
+        retainedFileCountLimit: 7,
+        outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {SourceContext} {Message:lj}{NewLine}{Exception}")
     .WriteTo.Elasticsearch(new[] { new Uri(logEsUrl) }, opts =>
     {
         opts.DataStream = new DataStreamName("logs", "filmsearchapi", "default");  // veri akışını(data stream) oluşturur
