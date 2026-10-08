@@ -49,8 +49,8 @@ app.UseSerilogRequestLogging();   // middleware - her isteğin başında devreye
 // basit tipler (string, int) URL'den okunur; kayıtlı bir servis tipi ise DI'dan gelir
 // async ve await -> cevap beklerken iş parçacığını (thread) meşgul etme
 // ES'e ağ üzerinden gidiyoruz; o sırada sunucu başka isteklere bakabilsin diye
-app.MapGet("/api/search/es", async (string q, ElasticsearchClient es) =>
-    {                                       // SearchAsync<Film> → "sonuçları Film tipine çevir
+app.MapGet("/api/search/es", async (string q, ElasticsearchClient es, ILogger<Program> logger) =>
+    {                      // SearchAsync<Film> → "sonuçları Film tipine çevir
         var answer = await es.SearchAsync<Film>(s => s
             .Query(sorgu => sorgu
                 .Match(m => m
@@ -62,7 +62,10 @@ app.MapGet("/api/search/es", async (string q, ElasticsearchClient es) =>
             .TrackTotalHits(true)
         );
         if (!answer.IsValidResponse)
-            return Results.Problem("Elasticsearch'e ulaşılamadı: " + answer.DebugInformation);
+        {
+             logger.LogError("Elasticsearch araması başarısız. {DebugInfo}", answer.DebugInformation);
+            return Results.Problem("Arama servisi şu anda kullanılamıyor");
+        }
 
         return Results.Ok(new               // new { ... } → anonim nesne. Adı olmayan, oracıkta üretilen bir tip
         {                                   // Sırf JSON'a çevrilecek diye ayrı bir sınıf yazmaya değmez
