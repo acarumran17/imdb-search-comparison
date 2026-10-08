@@ -24,13 +24,16 @@ public class SyncWorker : BackgroundService
             try
             {
                 await SenkronizeEt(stoppingToken);
+                await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
+            }
+            catch (OperationCanceledException)
+            {
+                break;   // normal kapanış, hata değil
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex,"Senkronizasyon turunda hata! ");
+                _logger.LogError(ex, "Senkronizasyon turunda hata! ");
             }
-
-            await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
         }
     }
 

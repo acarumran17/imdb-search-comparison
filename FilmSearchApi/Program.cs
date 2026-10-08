@@ -8,13 +8,18 @@ using Serilog;
 using DataStreamName = Elastic.Ingest.Elasticsearch.DataStreams.DataStreamName;
 
 
+var logEsUrl = new ConfigurationBuilder()
+    .AddJsonFile("appsettings.json")
+    .Build()["Elasticsearch:Url"] ?? "http://localhost:9200";
+
 // Log.Logger = serilog'un genel kaydedicisi
 // kurulurken hata olursa yakalayabilsin diye builder'dan önce yazıldı
 Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Information()  // bundan düşük seviyeli loglar (debug,verbose) hiç üretilmiyor
+    .MinimumLevel.Override("Microsoft.AspNetCore", Serilog.Events.LogEventLevel.Warning)
     .Enrich.FromLogContext()     // log bağlamına eklenen alanları her kayda otomatik iliştiriyor
     .WriteTo.Console()     // WriteTo.... -> iki hedef (sink), ikisi birden
-    .WriteTo.Elasticsearch(new[] { new Uri("http://localhost:9200") }, opts =>
+    .WriteTo.Elasticsearch(new[] { new Uri(logEsUrl) }, opts =>
     {
         opts.DataStream = new DataStreamName("logs", "filmsearchapi", "default");  // veri akışını(data stream) oluşturur
         opts.BootstrapMethod = BootstrapMethod.Failure; // ilk çalıştırmada ES'te gerekli şablonlar kurulamazsa hata fırlatıyor
@@ -29,19 +34,21 @@ var esIndex = builder.Configuration["Elasticsearch:Index"] ?? "filmler";
 var esSettings = new ElasticsearchClientSettings(new Uri(esUrl))
     .DefaultIndex(esIndex);
 
-builder.Services.AddSerilog();
+builder.Services.AddSerilog(); // .NET'in varsayılan kaydedicisini çıkarıp yerine Serilog koyuyoruz
     
 builder.Services.AddSingleton(new ElasticsearchClient(esSettings));
 // AddSingleton->  bu nesneden tek bir tane üret, isteyen herkese aynısını ver 
 builder.Services.AddHostedService<SyncWorker>();
 
 var app = builder.Build();
+app.UseSerilogRequestLogging();   // middleware - her isteğin başında devreye girip sonunda tek bir satır yazıyor
+                                  // ->  HTTP "GET" "/api/search/es" responded 200 in 27.9854 ms
 
 // endpoint       // string q-> URL'deki sorgu dizesinden → ?q=inception
 // ElasticsearchClient -> Dependency Injection'dan 
 // basit tipler (string, int) URL'den okunur; kayıtlı bir servis tipi ise DI'dan gelir
 // async ve await -> cevap beklerken iş parçacığını (thread) meşgul etme
-// ES'e ağ üzerinden gidiyoruz; o sırad sunucu başka isteklere bakabilsin diye
+// ES'e ağ üzerinden gidiyoruz; o sırada sunucu başka isteklere bakabilsin diye
 app.MapGet("/api/search/es", async (string q, ElasticsearchClient es) =>
     {                                       // SearchAsync<Film> → "sonuçları Film tipine çevir
         var answer = await es.SearchAsync<Film>(s => s
