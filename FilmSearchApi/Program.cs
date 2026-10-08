@@ -18,11 +18,15 @@ Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Information()  // bundan düşük seviyeli loglar (debug,verbose) hiç üretilmiyor
     .MinimumLevel.Override("Microsoft.AspNetCore", Serilog.Events.LogEventLevel.Warning)
     .Enrich.FromLogContext()     // log bağlamına eklenen alanları her kayda otomatik iliştiriyor
-    .WriteTo.Console()     // WriteTo.... -> iki hedef (sink), ikisi birden
+    .WriteTo.Console()     // WriteTo.... -> üç hedef
+    .WriteTo.File(
+        "logs/filmsearchapi-.log",
+        rollingInterval: RollingInterval.Day,
+        retainedFileCountLimit: 7)
     .WriteTo.Elasticsearch(new[] { new Uri(logEsUrl) }, opts =>
     {
         opts.DataStream = new DataStreamName("logs", "filmsearchapi", "default");  // veri akışını(data stream) oluşturur
-        opts.BootstrapMethod = BootstrapMethod.Failure; // ilk çalıştırmada ES'te gerekli şablonlar kurulamazsa hata fırlatıyor
+        opts.BootstrapMethod = BootstrapMethod.Silent;
     })
     .CreateLogger();
 

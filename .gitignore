@@ -21,3 +21,5 @@ FilmSearchApi/appsettings.Development.json
 # macOS
 .DS_Store
 proje-kaynak.md
+
+logs/
