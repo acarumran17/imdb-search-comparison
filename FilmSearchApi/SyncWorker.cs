@@ -6,7 +6,9 @@ public class SyncWorker : BackgroundService
 {
     private readonly IConfiguration _config;
     private readonly ILogger<SyncWorker> _logger;
-    private readonly ElasticsearchClient _es; 
+    private readonly ElasticsearchClient _es;
+    private const int KalpAtisiAraligi = 60;  // 60 tur x 5 sn = 5 dk
+    private int _turSayaci;
 
     public SyncWorker(IConfiguration config, ILogger<SyncWorker> logger, ElasticsearchClient es)
     {
@@ -23,8 +25,16 @@ public class SyncWorker : BackgroundService
         {
             try
             {
-                await SenkronizeEt(stoppingToken);
-                await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
+                var versiyon = await SenkronizeEt(stoppingToken);
+
+                _turSayaci++;
+                if (_turSayaci >= KalpAtisiAraligi)
+                {
+                    _logger.LogInformation(
+                        "Servis çalışıyor. {Tur} tur tamamlandı, güncel versiyon {Versiyon}",
+                        _turSayaci, versiyon);
+                    _turSayaci = 0;
+                }
             }
             catch (OperationCanceledException)
             {
@@ -32,29 +42,38 @@ public class SyncWorker : BackgroundService
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Senkronizasyon turunda hata! ");
+                _logger.LogError(ex, "Senkronizasyon turunda hata!");
+            }
+
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
+            }
+            catch (OperationCanceledException)
+            {
+                break;   // bekleme sırasında kapanma isteği geldi
             }
         }
     }
 
-    private async Task SenkronizeEt(CancellationToken ct)
+    private async Task<long> SenkronizeEt(CancellationToken ct)
     {
         var baglantiDizesi = _config.GetConnectionString("FilmDb");
 
         await using var baglanti = new SqlConnection(baglantiDizesi);
         await baglanti.OpenAsync(ct);
-        
+
         // son kalınan yer 
         long sonVersiyon = await TekDegerOku(baglanti,
             "SELECT SonVersiyon FROM SyncState WHERE TabloAdi = 'Filmler'", ct);
-        
+
         // şuan nerede (sorgudan önce alıyoruz)
         long suAnkiVersiyon = await TekDegerOku(baglanti,
             "SELECT CHANGE_TRACKING_CURRENT_VERSION()", ct);
-        
+
         if (suAnkiVersiyon == sonVersiyon)
-            return;
-        
+            return suAnkiVersiyon;   // boş çıkış, versiyon aynı
+
         // kaydettiğim versiyon hala geçerli mi 
         long minGecerli = await TekDegerOku(baglanti,
             "SELECT CHANGE_TRACKING_MIN_VALID_VERSION(OBJECT_ID('Filmler'))", ct);
@@ -64,9 +83,9 @@ public class SyncWorker : BackgroundService
             _logger.LogWarning(
                 "Versiyon {Son} artık geçersiz (en eski geçerli: {Min}). Tam senkronizasyon gerekiyor.",
                 sonVersiyon, minGecerli);
-            return;
+            return sonVersiyon;
         }
-        
+
         // ne değişti (her 5 saniyede bir çalışıyor, servisin asıl sorgusu)
         const string sorgu = """
                              SELECT ct.Tconst,
@@ -96,7 +115,7 @@ public class SyncWorker : BackgroundService
             {
                 var tconst = okuyucu.GetString(0);
                 var islem = okuyucu.GetString(1);
-                
+
 
                 if (islem == "D")
                 {
@@ -130,7 +149,7 @@ public class SyncWorker : BackgroundService
             if (!cevap.IsValidResponse)
                 throw new Exception($"ES yazma hatası: {belge.Tconst} - {cevap.DebugInformation}");
         }
-        
+
         // ES'ten sil
         foreach (var id in silinecekler)
         {
@@ -139,10 +158,12 @@ public class SyncWorker : BackgroundService
 
         // nerede kaldığımı kaydet
         await VersiyonKaydet(baglanti, suAnkiVersiyon, ct);
-        
+
         _logger.LogInformation(
             "Tur bitti. Yazılan: {Yaz}, Silinen: {Sil}. Versiyon {Eski} -> {Yeni}",
             yazilacaklar.Count, silinecekler.Count, sonVersiyon, suAnkiVersiyon);
+
+        return suAnkiVersiyon;
     }
 
     private static async Task<long> TekDegerOku(SqlConnection baglanti, string sorgu, CancellationToken ct)
