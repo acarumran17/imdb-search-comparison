@@ -19,4 +19,5 @@ FilmSearchApi/appsettings.Development.json
 .vscode/
 
 # macOS
-.DS_Storeproje-kaynak.md
+.DS_Storeproje
+kaynak.md
