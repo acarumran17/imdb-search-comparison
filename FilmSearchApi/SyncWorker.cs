@@ -153,7 +153,10 @@ public class SyncWorker : BackgroundService
         // ES'ten sil
         foreach (var id in silinecekler)
         {
-            await _es.DeleteAsync<FilmDoc>(id, ct);
+            var cevap = await _es.DeleteAsync<FilmDoc>(id, ct);
+
+            if (!cevap.IsValidResponse && cevap.Result != Result.NotFound)
+                throw new Exception($"ES silme hatası: {id} - {cevap.DebugInformation}");
         }
 
         // nerede kaldığımı kaydet
