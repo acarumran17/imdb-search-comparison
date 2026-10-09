@@ -56,6 +56,9 @@ app.UseSerilogRequestLogging();   // middleware - her isteğin başında devreye
 // ES'e ağ üzerinden gidiyoruz; o sırada sunucu başka isteklere bakabilsin diye
 app.MapGet("/api/search/es", async (string q, ElasticsearchClient es, ILogger<Program> logger) =>
     {                      // SearchAsync<Film> → "sonuçları Film tipine çevir
+        if (string.IsNullOrWhiteSpace(q))
+            return Results.BadRequest("Arama terimi boş olamaz.");
+
         var answer = await es.SearchAsync<Film>(s => s
             .Query(sorgu => sorgu
                 .Match(m => m
@@ -88,6 +91,9 @@ app.MapGet("/api/search/es", async (string q, ElasticsearchClient es, ILogger<Pr
 // IConfiguration config parametresi DI'dan geliyor , appsettings.json'a erişim
 app.MapGet("/api/search/sql", async (string q, IConfiguration config) =>
 {
+    if (string.IsNullOrWhiteSpace(q))
+        return Results.BadRequest("Arama terimi boş olamaz.");
+
     const string query = """
         SELECT TOP 10 f.Tconst, f.PrimaryTitle, f.StartYear, f.Rating, ft.RANK
         FROM FREETEXTTABLE(Filmler, PrimaryTitle, @q) AS ft 
