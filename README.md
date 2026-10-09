@@ -227,3 +227,17 @@ BM25'te var, bu yüzden Elasticsearch kısa olan *Inception*'ı *Alien Inception
     └── SyncWorker.cs           # Change Tracking → Elasticsearch senkronizasyonu
 ```
 
+## Bilinen sınırlar
+
+- **Change Tracking saklama süresi 7 gün.** Servis bundan uzun kapalı kalırsa
+  kaçan değişiklikler geri getirilemez, tablonun tamamının yeniden yüklenmesi
+  gerekir. Kod bu durumu tespit ediyor ve uyarı basıyor, ancak kurtarma
+  uygulanmadı — otomatik yeniden yükleme mi yoksa durup bildirme mi olacağı
+  gerçek ortamın verisine ve işletim şekline bağlı.
+
+- **Servis durduğunda uyaran bir alarm yok.** Kalp atışı logu sessizliği
+  anlamlı hale getiriyor, ama sessizliği fark edecek bir mekanizma yok.
+  Sentry'nin check-in izleme özelliği bu iş için uygun.
+
+- **Elasticsearch kesintisi sırasındaki loglar Kibana'ya girmiyor.** Ara bellek
+  yok; o satırlar yalnızca `logs/` altındaki dosyada kalıyor.
