@@ -54,7 +54,7 @@ app.UseSerilogRequestLogging();   // middleware - her isteğin başında devreye
 // basit tipler (string, int) URL'den okunur; kayıtlı bir servis tipi ise DI'dan gelir
 // async ve await -> cevap beklerken iş parçacığını (thread) meşgul etme
 // ES'e ağ üzerinden gidiyoruz; o sırada sunucu başka isteklere bakabilsin diye
-app.MapGet("/api/search/es", async (string q, ElasticsearchClient es, ILogger<Program> logger) =>
+app.MapGet("/api/search/es", async (string? q, ElasticsearchClient es, ILogger<Program> logger) =>
     {                      // SearchAsync<Film> → "sonuçları Film tipine çevir
         if (string.IsNullOrWhiteSpace(q))
             return Results.BadRequest("Arama terimi boş olamaz.");
@@ -89,7 +89,7 @@ app.MapGet("/api/search/es", async (string q, ElasticsearchClient es, ILogger<Pr
 // -----------------  SQL SERVER  ----------------------------------------------------
 
 // IConfiguration config parametresi DI'dan geliyor , appsettings.json'a erişim
-app.MapGet("/api/search/sql", async (string q, IConfiguration config) =>
+app.MapGet("/api/search/sql", async (string? q, IConfiguration config) =>
 {
     if (string.IsNullOrWhiteSpace(q))
         return Results.BadRequest("Arama terimi boş olamaz.");
@@ -108,16 +108,16 @@ app.MapGet("/api/search/sql", async (string q, IConfiguration config) =>
         """;
     var connectionString = config.GetConnectionString("FilmDb");   //(appsettings.json'dan adresi al)
     var results = new List<Film>();    // filmleri dolduracağımız boş liste
-    
+
     var time = Stopwatch.StartNew();
-    
+
     // await using-> blok bitince otomatik kapanıyor
-    await using var connection= new SqlConnection(connectionString);  // bağlantı nesnesi oluşturuyor
+    await using var connection = new SqlConnection(connectionString);  // bağlantı nesnesi oluşturuyor
     await connection.OpenAsync();  // bağlanıyor
-    
+
     var sayimSuresi = Stopwatch.StartNew();
     // önce toplam sayıyı al (okuyucu açılmadan ÖNCE olmak zorunda)
-    
+
     int toplam;
     await using (var sayimKomutu = new SqlCommand(countQuery, connection))
     {
@@ -148,17 +148,17 @@ app.MapGet("/api/search/sql", async (string q, IConfiguration config) =>
         results.Add(film);   // listeye ekle
     }
     time.Stop();
-    
+
     return Results.Ok(new   // kronometreyi durdur, sonucu paketle, gönder.
-        {
-            source = "sqlserver",
-            scoreType = "RANK (0-1000)",
-            timeMs = time.ElapsedMilliseconds,
-            countMs = sayimSuresi.ElapsedMilliseconds,
-            sum = toplam,
-            returned = results.Count,
-            result = results
-        });
+    {
+        source = "sqlserver",
+        scoreType = "RANK (0-1000)",
+        timeMs = time.ElapsedMilliseconds,
+        countMs = sayimSuresi.ElapsedMilliseconds,
+        sum = toplam,
+        returned = results.Count,
+        result = results
+    });
 });
     
 app.Run();
