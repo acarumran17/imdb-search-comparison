@@ -279,3 +279,16 @@ BM25'te var, bu yüzden Elasticsearch kısa olan *Inception*'ı *Alien Inception
 
 - **Elasticsearch kesintisi sırasındaki loglar Kibana'ya girmiyor.** Ara bellek
   yok; o satırlar yalnızca `logs/` altındaki dosyada kalıyor.
+
+- **Kalp atışı Elasticsearch'in ayakta olduğunu kanıtlamıyor.** Değişiklik yokken
+  tur ES'e dokunmadan bitiyor, bu yüzden ES kapalı olsa da check-in gidiyor. ES
+  kesintisi ancak bir değişiklik yazılmaya çalışılınca ya da bir arama isteği 500
+  dönünce Sentry'ye yansıyor.
+
+- **Kibana ve Sentry kayıtları ortak bir kimlikle bağlı değil.** `SyncWorker` bir
+  HTTP isteği değil, bu yüzden Elasticsearch kaydında `trace.id` oluşmuyor. Aynı
+  hata iki tarafta zaman damgası ve `logger` adına bakılarak elle bulunuyor.
+
+ - **Başarısız bir arama isteği Sentry'de 2 event harcıyor.** Biri uç noktadaki
+  `LogError`, biri istek günlüğünün `500` kaydı. İkisi aynı issue'da toplanıyor ama
+  ücretsiz kotadan (5.000 event/ay) ikisi de düşüyor.
