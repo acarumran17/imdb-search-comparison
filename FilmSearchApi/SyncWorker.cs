@@ -1,6 +1,6 @@
 using Elastic.Clients.Elasticsearch;
 using Microsoft.Data.SqlClient;
-
+using Sentry;
 
 public class SyncWorker : BackgroundService
 {
@@ -9,6 +9,7 @@ public class SyncWorker : BackgroundService
     private readonly ElasticsearchClient _es;
     private const int KalpAtisiAraligi = 60;  // 60 tur x 5 sn = 5 dk
     private int _turSayaci;
+    private string? _sonHataTuru;
 
     public SyncWorker(IConfiguration config, ILogger<SyncWorker> logger, ElasticsearchClient es)
     {
@@ -26,6 +27,11 @@ public class SyncWorker : BackgroundService
             try
             {
                 var versiyon = await SenkronizeEt(stoppingToken);
+                if (_sonHataTuru != null)
+                {
+                    _logger.LogInformation("Senkronizasyon toparlandı (önceki hata: {HataTuru})", _sonHataTuru);
+                    _sonHataTuru = null;
+                }
 
                 _turSayaci++;
                 if (_turSayaci >= KalpAtisiAraligi)
@@ -33,6 +39,16 @@ public class SyncWorker : BackgroundService
                     _logger.LogInformation(
                         "Servis çalışıyor. {Tur} tur tamamlandı, güncel versiyon {Versiyon}",
                         _turSayaci, versiyon);
+                    SentrySdk.CaptureCheckIn(
+                        "filmsearchapi-syncworker",
+                        CheckInStatus.Ok,
+                        configureMonitorOptions: o =>
+                        {
+                            o.Interval(5, SentryMonitorInterval.Minute);
+                            o.CheckInMargin = TimeSpan.FromMinutes(5);
+                            o.FailureIssueThreshold = 1;
+                            o.RecoveryThreshold = 1;
+                        });
                     _turSayaci = 0;
                 }
             }
@@ -42,7 +58,17 @@ public class SyncWorker : BackgroundService
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Senkronizasyon turunda hata!");
+                var tur = ex.GetType().Name;
+
+                if (tur != _sonHataTuru)
+                {
+                    _logger.LogError(ex, "Senkronizasyon turunda hata!");  // yeni hata türü -> Sentry event
+                    _sonHataTuru = tur;
+                }
+                else
+                {
+                    _logger.LogWarning(ex, "Senkronizasyon hala başarısız ({HataTuru})", tur);    // aynı hata sürüyor -> sadece Kibana/dosya
+                }
             }
 
             try
@@ -80,10 +106,8 @@ public class SyncWorker : BackgroundService
 
         if (sonVersiyon < minGecerli)
         {
-            _logger.LogWarning(
-                "Versiyon {Son} artık geçersiz (en eski geçerli: {Min}). Tam senkronizasyon gerekiyor.",
-                sonVersiyon, minGecerli);
-            return sonVersiyon;
+            throw new InvalidOperationException(
+                $"Versiyon {sonVersiyon} artık geçersiz (en eski geçerli: {minGecerli}). Tam senkronizasyon gerekiyor.");
         }
 
         // ne değişti (her 5 saniyede bir çalışıyor, servisin asıl sorgusu)

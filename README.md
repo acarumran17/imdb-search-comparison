@@ -65,9 +65,16 @@ MSSQL_SA_PASSWORD=GucluBirSifre1!
 {
   "ConnectionStrings": {
     "FilmDb": "Server=localhost,1433;Database=FilmDb;User Id=sa;Password=GucluBirSifre1!;TrustServerCertificate=True"
+  },
+  "Sentry": {
+    "Dsn": "https://<anahtar>@<sunucu>.ingest.sentry.io/<proje-no>"
   }
 }
 ```
+
+`Sentry:Dsn` isteğe bağlı: boş bırakılırsa Sentry sessizce kapalı kalır, uygulama ve
+loglar normal çalışır. DSN'i Sentry panelinde proje ayarlarındaki *Client Keys (DSN)*
+sayfasından alabilirsin. Depoya girmemeli, bu yüzden gitignore'daki dosyada duruyor.
 
 Sır olmayan ayarlar `appsettings.json`'da ve depoya giriyor:
 
@@ -173,6 +180,31 @@ halini birden tutuyor, ~10 kat yer kaplıyor ve SQL Server Agent gerektiriyor.
 Debezium zaten CDC üzerine kurulu. Elasticsearch'e her zaman kaydın son hali
 yazıldığı için değişiklik geçmişine ihtiyaç yok.
 
+## Hata izleme ve alarm
+
+Loglar iki yere ayrılıyor: **hepsi** Kibana'ya (Elasticsearch), **`Error` ve üstü**
+ayrıca Sentry'ye gidiyor. Kibana "ne oldu" sorusunun, Sentry "bir şey bozuldu mu"
+sorusunun yeri.
+
+**Hata fırtınası önlemi.** SQL Server kapalıyken servis 5 saniyede bir aynı hatayı
+alır. Hepsi Sentry'ye gitseydi günde ~17.000 event olurdu, ücretsiz kota (5.000
+event/ay) saatler içinde biterdi. Bu yüzden `SyncWorker` son hatanın türünü
+hatırlıyor: yeni türde bir hata gelince `Error` basıyor (Sentry'ye gider), aynı tür
+sürdükçe `Warning` basıyor (yalnızca Kibana ve dosyaya gider), tur başarılı olunca
+"toparlandı" bilgi logu basıp durumu sıfırlıyor.
+
+**Servis ölümü tespiti.** Kalp atışı noktasında (60 tur, ≈5 dk) servis Sentry
+Crons'a check-in gönderiyor. Monitör: `filmsearchapi-syncworker`, 5 dk aralık, 5 dk
+tolerans, ilk check-in'de kendiliğinden oluşuyor. Check-in yalnızca başarılı
+turdan sonra gittiği için hata veren ya da ölü servis sinyal göndermiyor. Sinyal
+gelmezse Sentry "Cron failure" issue'su açıp e-posta atıyor. Servis geri gelip
+check-in gönderince issue kapanıyor, sonraki kesintide aynı issue yeniden açılıyor.
+
+**Elle kurulması gereken tek şey alert kuralı.** Sentry panelinde Monitors →
+`filmsearchapi-syncworker` → Connected Alerts → New Alert. Tetikleyiciler: "A new
+issue is created" ve "A resolved issue regresses"; aksiyon: e-posta. Kod bunu
+kendisi oluşturamıyor.
+
 ## Karşılaştırma sonuçları
 
 | Ölçüt | Elasticsearch | SQL Server FTS |
@@ -231,13 +263,19 @@ BM25'te var, bu yüzden Elasticsearch kısa olan *Inception*'ı *Alien Inception
 
 - **Change Tracking saklama süresi 7 gün.** Servis bundan uzun kapalı kalırsa
   kaçan değişiklikler geri getirilemez, tablonun tamamının yeniden yüklenmesi
-  gerekir. Kod bu durumu tespit ediyor ve uyarı basıyor, ancak kurtarma
-  uygulanmadı — otomatik yeniden yükleme mi yoksa durup bildirme mi olacağı
-  gerçek ortamın verisine ve işletim şekline bağlı.
+  gerekir. Kod bu durumu tespit edip hata fırlatıyor (Sentry'ye bildiriliyor),
+  ancak kurtarma uygulanmadı — otomatik yeniden yükleme mi yoksa durup bildirme
+  mi olacağı gerçek ortamın verisine ve işletim şekline bağlı.
 
-- **Servis durduğunda uyaran bir alarm yok.** Kalp atışı logu sessizliği
-  anlamlı hale getiriyor, ama sessizliği fark edecek bir mekanizma yok.
-  Sentry'nin check-in izleme özelliği bu iş için uygun.
+- **Servis ölümü alarmı ≈10 dakika gecikmeli.** Sinyal 5 dk'da bir geliyor ve
+  Sentry 5 dk tolerans tanıyor. Toleransı kısaltmak yanlış alarmı artırır.
+  Geliştirme makinesi uykuya girerse de servis ölmüş gibi görünür (check-in
+  ortam etiketi taşıdığı için `Development` ve üretim ayrı izleniyor).
+
+- **Aynı hata türü sürerken yeni neden Sentry'ye gitmiyor.** Hata türü
+  (`SqlException` gibi) değişmediği sürece, nedeni değişse bile (sunucu
+  bulunamadı → kimlik doğrulama hatası) olay yalnızca Kibana'ya `Warning`
+  olarak düşüyor.
 
 - **Elasticsearch kesintisi sırasındaki loglar Kibana'ya girmiyor.** Ara bellek
   yok; o satırlar yalnızca `logs/` altındaki dosyada kalıyor.

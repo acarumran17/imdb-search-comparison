@@ -8,9 +8,14 @@ using Serilog;
 using DataStreamName = Elastic.Ingest.Elasticsearch.DataStreams.DataStreamName;
 
 
-var logEsUrl = new ConfigurationBuilder()
+var earlyConfig = new ConfigurationBuilder()
     .AddJsonFile("appsettings.json")
-    .Build()["Elasticsearch:Url"] ?? "http://localhost:9200";
+    .AddJsonFile("appsettings.Development.json", optional: true)
+    .AddEnvironmentVariables()
+    .Build();
+
+var logEsUrl = earlyConfig["Elasticsearch:Url"] ?? "http://localhost:9200";
+var dsn = earlyConfig["Sentry:Dsn"];
 
 // Log.Logger = serilog'un genel kaydedicisi
 // kurulurken hata olursa yakalayabilsin diye builder'dan önce yazıldı
@@ -18,12 +23,18 @@ Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Information()  // bundan düşük seviyeli loglar (debug,verbose) hiç üretilmiyor
     .MinimumLevel.Override("Microsoft.AspNetCore", Serilog.Events.LogEventLevel.Warning)
     .Enrich.FromLogContext()     // log bağlamına eklenen alanları her kayda otomatik iliştiriyor
-    .WriteTo.Console()     // WriteTo.... -> üç hedef
+    .WriteTo.Console()     // WriteTo.... -> dört hedef
     .WriteTo.File(
         "logs/filmsearchapi-.log",
         rollingInterval: RollingInterval.Day,
         retainedFileCountLimit: 7,
         outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {SourceContext} {Message:lj}{NewLine}{Exception}")
+    .WriteTo.Sentry(o =>
+    {
+        o.Dsn = dsn;   // adres 
+        o.Environment = earlyConfig["ASPNETCORE_ENVIRONMENT"] ?? "Production";
+        o.MinimumEventLevel = Serilog.Events.LogEventLevel.Error;   // bu seviye ve üstü, sentry'e event (issue) olarak gider
+    })
     .WriteTo.Elasticsearch(new[] { new Uri(logEsUrl) }, opts =>
     {
         opts.DataStream = new DataStreamName("logs", "filmsearchapi", "default");  // veri akışını(data stream) oluşturur
