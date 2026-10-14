@@ -16,6 +16,7 @@ services:                    # çalışacak programlar
     container_name: kibana
     environment:
       - ELASTICSEARCH_HOSTS=http://elasticsearch:9200   # Kibana, ES'e servis adıyla bağlanır
+      - XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY=${KIBANA_ENCRYPTION_KEY}
     ports:
       - "5601:5601"            # Kibana'nın arayüzüne Mac'ten localhost:5601 ile ulaşmak için.
     depends_on:

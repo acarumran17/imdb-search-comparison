@@ -37,9 +37,9 @@ public class SyncWorker : BackgroundService
                 if (_turSayaci >= KalpAtisiAraligi)
                 {
                     _logger.LogInformation(
-                        "Servis çalışıyor. {Tur} tur tamamlandı, güncel versiyon {Versiyon}",
-                        _turSayaci, versiyon);
-                    SentrySdk.CaptureCheckIn(
+                        "Servis çalışıyor. {Tur} tur tamamlandı, güncel versiyon {Versiyon}",  // kibanaya giden information logu
+                        _turSayaci, versiyon); 
+                    SentrySdk.CaptureCheckIn(    // sentry'e giden 
                         "filmsearchapi-syncworker",
                         CheckInStatus.Ok,
                         configureMonitorOptions: o =>

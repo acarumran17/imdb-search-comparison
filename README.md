@@ -57,7 +57,9 @@ Proje kökünde `.env`:
 
 ```env
 MSSQL_SA_PASSWORD=GucluBirSifre1!
+KIBANA_ENCRYPTION_KEY=<en az 32 karakterlik rastgele değer>
 ```
+`KIBANA_ENCRYPTION_KEY` Kibana'nın alarm (Alerting) özelliği için gerekli; `openssl rand -hex 32` ile üretilebilir.
 
 `FilmSearchApi/appsettings.Development.json` (gitignore'da):
 

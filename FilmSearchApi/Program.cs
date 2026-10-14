@@ -18,7 +18,7 @@ var logEsUrl = earlyConfig["Elasticsearch:Url"] ?? "http://localhost:9200";
 var dsn = earlyConfig["Sentry:Dsn"];
 
 // Log.Logger = serilog'un genel kaydedicisi
-// kurulurken hata olursa yakalayabilsin diye builder'dan önce yazıldı
+// kurulurken hata olursa yakalayabilsin diye builder'dan önce yazılıyor
 Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Information()  // bundan düşük seviyeli loglar (debug,verbose) hiç üretilmiyor
     .MinimumLevel.Override("Microsoft.AspNetCore", Serilog.Events.LogEventLevel.Warning)
@@ -34,6 +34,7 @@ Log.Logger = new LoggerConfiguration()
         o.Dsn = dsn;   // adres 
         o.Environment = earlyConfig["ASPNETCORE_ENVIRONMENT"] ?? "Production";
         o.MinimumEventLevel = Serilog.Events.LogEventLevel.Error;   // bu seviye ve üstü, sentry'e event (issue) olarak gider
+        // o.EnableLogs = true;  // loglar eksik ve gecikmeli geldi 
     })
     .WriteTo.Elasticsearch(new[] { new Uri(logEsUrl) }, opts =>
     {
